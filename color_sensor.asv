@@ -1,0 +1,111 @@
+global key
+control = 1;
+
+% Define the minimum distance threshold (in centimeters)
+minimumDistanceThreshold = 20;
+
+% Define the color sensor port
+colorSensorPort = 3; % Update if your color sensor port is different
+
+% Define the yellow color code (you will need to calibrate this based on your sensor and colors)
+yellowColorCode = 4; % LEGO color sensors return 4 for yellow, but calibrate as needed
+
+% Define the touch sensor port
+touchSensorFrontPort = 4; % Update if your touch sensor port is different
+
+while true  % Infinite loop until the kill switch is activated.
+    % Kill switch check using the touch sensor.
+    touch = brick.TouchPressed(1);  % Read the touch sensor connected to port 1.
+    if touch
+        brick.beep();  % Beep if the sensor was touched.
+        break;  % End the loop and stop the program.
+    end
+
+    % Front collision detection using the front touch sensor.
+    touchFront = brick.TouchPressed(touchSensorFrontPort); % Read the front touch sensor.
+    if touchFront
+        % If the front touch sensor is pressed, reverse a bit.
+        brick.MoveMotor('AD', -20);
+        pause(0.5); % Adjust the pause time to ensure the car moves back enough
+        
+        % Check the right side for walls using the ultrasonic sensor.
+        distanceRight = brick.UltrasonicDist(2);  % Get distance to the nearest object on the right side.
+        if distanceRight > minimumDistanceThreshold
+            % If there's no wall to the right, turn right.
+            brick.MoveMotor('A', 20);
+            brick.MoveMotor('D', -20);
+            pause(1);  % Adjust the pause time to complete the right turn.
+        end
+        continue; % Skip the rest of the loop and start over.
+    end
+    
+    % Color detection using the color sensor.
+    currentColor = brick.ColorCode(colorSensorPort); % Get the color code from the color sensor
+    % Check if the car is on a yellow color
+    if currentColor == yellowColorCode
+        % Stop the motors if yellow color is detected
+        brick.StopMotor('AD', 'Brake');
+        pause(0.5);  % Pause for a short while
+        
+        % Turn left
+        brick.MoveMotor('A', -20);
+        brick.MoveMotor('D', 20);
+        pause(1);  % Pause for a duration sufficient to make a left turn
+        
+        % Stop motors after turning left
+        brick.StopMotor('AD', 'Brake');
+        break; % Stop the loop if you want to end the program here
+    end
+    
+    % Distance measurement using the ultrasonic sensor.
+    distance = brick.UltrasonicDist(2);  % Get distance to the nearest object using sensor on port 2.
+    display(distance);  % Display the measured distance.
+    
+    % Check if the distance to the nearest object is less than the threshold.
+    if distance <= minimumDistanceThreshold
+        % If too close to an object, stop the motors.
+        brick.StopMotor('AD', 'Brake');
+        
+        % Turn right
+        brick.MoveMotor('A', 20);
+        brick.MoveMotor('D', -20);
+        pause(1);  % Pause for a duration sufficient to make a right turn
+        
+        % You may want to add logic to resume movement after turning.
+    else
+        % If no object is detected within the threshold, move forward.
+        brick.MoveMotor('AD', 20);  % Move motors A and D forward.
+    end
+
+    if control
+  
+    InitKeyboard();
+  
+       while 1
+           pause(0.1);
+           switch key
+               case 'uparrow'
+                   disp('Up');
+               case 'downarrow'
+                   disp('Down');
+               case 'leftarrow'
+                   disp('Left');
+               case 'rightarrow'
+                   disp('Right');
+               case 0
+                   disp('No key')
+               case 'q'
+                   nerd = 0;
+                   break;
+           end
+       end
+       CloseKeyboard();
+    end
+    
+    
+    % Short pause for better control over loop execution time.
+    pause(0.1);  % Pause for 0.1 seconds before the next iteration.
+end
+
+% Stop the motors immediately after exiting the loop.
+brick.StopMotor('AD', 'Brake');
