@@ -1,17 +1,23 @@
 global key
-control = 0;
-yellow = 0;
-blue = 0;
-green = 0;
+
+control = 0; % Flag for remote control
+%yellow = 0; % Legacy flag, ensure it's needed or remove
+%blue = 0; % Legacy flag, ensure it's needed or remove
+%green = 0; % Legacy flag, ensure it's needed or remove
 
 % Define the minimum distance threshold (in centimeters)
-distanceRight = 3.1;
+distanceRight = 7;
 
+% Initial state
+state = 'start_yellow';
+
+% Initialize lastColor with a value that doesn't match any color code
+lastColor = 0;
 
 % Define the color sensor port
-colorSensorPort = 3; % Updqate if your color sensor port is different
+colorSensorPort = 3; % Update if your color sensor port is different
 
-% Define the yellow color code (you will need to calibrate this based on your sensor and colors)
+% Define the color codes
 yellowColorCode = 4; % LEGO color sensors return 4 for yellow, but calibrate as needed
 redColorCode = 5;
 greenColorCode = 3;
@@ -19,6 +25,7 @@ blueColorCode = 2;
 
 % Define the touch sensor port
 touchSensorFrontPort = 4; % Update if your touch sensor port is different
+
 
 while true  % Infinite loop until the kill switch is activated.
     % Kill switch check using the touch sensor.
@@ -38,20 +45,20 @@ while true  % Infinite loop until the kill switch is activated.
            switch key
                case 'uparrow'
                    disp('Up');
-                   brick.MoveMotor('A', 20);
-                   brick.MoveMotor('C', 20);
+                   brick.MoveMotor('A', 60);
+                   brick.MoveMotor('C', 60);
                case 'downarrow'
                    disp('Down');
-                   brick.MoveMotor('A', -20);
-                   brick.MoveMotor('C', -20);
+                   brick.MoveMotor('A', -60);
+                   brick.MoveMotor('C', -60);
                case 'leftarrow'
                    disp('Left');
-                   brick.MoveMotor('A', 20);
-                   brick.MoveMotor('C', -20);
+                   brick.MoveMotor('A', 30);
+                   brick.MoveMotor('C', -30);
                case 'rightarrow'
                    disp('Right');
-                   brick.MoveMotor('A', -20);
-                   brick.MoveMotor('C', 20);
+                   brick.MoveMotor('A', -30);
+                   brick.MoveMotor('C', 30);
                case 0
                    disp('No key')
                    brick.StopMotor('ACD', 'Brake');
@@ -74,61 +81,107 @@ while true  % Infinite loop until the kill switch is activated.
         % Reverse a bit if the front sensor is pressed.
         brick.MoveMotor('A', -50);
         brick.MoveMotor('C', -60);
-        pause(0.9);
-
-        % Check right side for walls.
-        distanceRight = brick.UltrasonicDist(2);
-        if distanceRight >= maximumDistanceThreshold
-            % Turn left if there's a wall to the right.
-            brick.MoveMotor('A', 40);
-            brick.MoveMotor('C', -70);
-            pause(1);
-        else
-            % If no wall to the right, adjust the course slightly right before moving forward again.
-            brick.MoveMotor('A', -30);
-            brick.MoveMotor('C', 30);
-            pause(1);
-        end
-        continue;
+        pause(1.2);
+        brick.MoveMotor('A', -50);
+        brick.MoveMotor('C', 80);
+        pause(0.8);
+        brick.MoveMotor('A', 60);
+        brick.MoveMotor('C', 55);
+        pause(2);
+    
+        
     end
 
     
 
-    % Short pause for better control over loop execution time.
-    pause(0.1);  % Adjust as necessary for smoother operation.
+
+    
+    % Color detection
+    currentColor = brick.ColorCode(colorSensorPort);
+
+    % State-based logic
+    switch state
+        case 'start_yellow'
+            if currentColor == redColorCode
+                brick.StopMotor('AC', 'Brake');
+                pause(1);
+                brick.MoveMotor('A', 65);
+                brick.MoveMotor('C', 55);
+                pause(0.8);
+
+            end
+            if currentColor == blueColorCode
+                state = 'remote_control';
+                control = 1; % Enable remote control
+            end
+
+        case 'remote_control'
+            
+            if control == 0 % Check if remote control has been exited
+                % Decide next state based on last significant color
+                if lastColor == blueColorCode
+                    state = 'seek_green';
+                elseif lastColor == gzasreenColorCode
+                    state = 'return_yellow';
+                end
+            end
+
+        case 'seek_green'
+
+            if currentColor == redColorCode
+                brick.StopMotor('AC', 'Brake');
+                pause(1);
+                brick.MoveMotor('A', 65);
+                brick.MoveMotor('C', 55);
+                pause(0.8);
+            end
+
+            if currentColor == greenColorCode
+                state = 'remote_control';
+                control = 1; % Enable remote control
+            end
+
+            
+
+        case 'return_yellow'
+
+            if currentColor == redColorCode
+                brick.StopMotor('AC', 'Brake');
+                pause(1);
+                brick.MoveMotor('A', 65);
+                brick.MoveMotor('C', 55);
+                pause(0.8);
+            end
+
+            if currentColor == yellowColorCode
+                % Reached the end, stop or do something else
+                break; % Exit the main loop
+            end
+    end
+
+ 
+
+    % Remember the last non-red color detected
+    if currentColor ~= redColorCode
+        lastColor = currentColor;
+    end
     
 
-    % Color detection using the color sensor.
-    currentColor = brick.ColorCode(colorSensorPort); % Get the color code from the color sensor
-    % Check if the car is on a yellow color
-    if currentColor == redColorCode
-        brick.StopMotor('AC');
-        pause(1);
-         % Stop the loop if you want to end the program here
-    end
-    
-    if currentColor == blueColorCode
-        brick.StopMotor('AC');
-        brick.beep();
-        pause(1);
-        brick.beep();
-        pause(1);
-        break;
-    end
 
-    if currentColor == greenColorCode
-        brick.StopMotor('AC');
-        brick.beep();
-        pause(1);
-        brick.beep();
-        pause(1);
-        brick.beep();
-        pause(1);
-        break;
+    if brick.UltrasonicDist(2) <= distanceRight
+        brick.MoveMotor('A', 65);
+        brick.MoveMotor('C', 55);
     end
     
-    brick.MoveMotor('A', 65);
-    brick.MoveMotor('C', 60);
+    if brick.UltrasonicDist(2) > 20
+        brick.MoveMotor('A', 65);
+        brick.MoveMotor('C', -55);
+        pause(0.8);
+        brick.MoveMotor('A', 60);
+        brick.MoveMotor('C', 55);
+        pause(1.5);
+    end
+    
     
     % Short pause for better control over loop execution time.
     pause(0.1);  % Pause for 0.1 seconds before the next iteration.
